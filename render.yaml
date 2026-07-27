@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: max-sentinel
+    runtime: docker
+    plan: free
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: demo
+      - key: GATEWAY_HTTP_ADDR
+        value: :10000
+      - key: MARKETS
+        value: btctwd,ethtwd
+      - key: PAPER_MAX_NOTIONAL_TWD
+        value: "100000"
