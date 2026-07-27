@@ -1,0 +1,45 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Spread (bps)",
+      "targets": [{"expr": "max_sentinel_spread_bps", "legendFormat": "{{market}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "Realized volatility",
+      "targets": [{"expr": "max_sentinel_realized_volatility", "legendFormat": "{{market}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "type": "stat",
+      "title": "Risk severity",
+      "targets": [{"expr": "max_sentinel_risk_severity", "legendFormat": "{{market}}"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "NORMAL"}, "1": {"text": "WARNING"}, "2": {"text": "CRITICAL"}}}] }},
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 8}
+    },
+    {
+      "type": "timeseries",
+      "title": "Risk processing latency p95",
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(max_sentinel_risk_processing_duration_seconds_bucket[5m])) by (le))"}],
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 8}
+    },
+    {
+      "type": "timeseries",
+      "title": "Paper-order decisions",
+      "targets": [{"expr": "sum(rate(max_sentinel_paper_orders_total[5m])) by (result)", "legendFormat": "{{result}}"}],
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 8}
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["exchange", "risk", "portfolio"],
+  "templating": {"list": []},
+  "time": {"from": "now-30m", "to": "now"},
+  "title": "MAX Sentinel Operations",
+  "uid": "max-sentinel",
+  "version": 1
+}

@@ -1,0 +1,24 @@
+# Go
+bin/
+coverage.out
+*.test
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Runtime data
+data/
+*.log

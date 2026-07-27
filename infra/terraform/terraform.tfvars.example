@@ -1,0 +1,9 @@
+aws_region        = "ap-northeast-1"
+environment       = "dev"
+owner             = "replace-me"
+kubernetes_version = "1.36"
+kafka_version      = "3.9.x"
+db_username        = "maxsentinel"
+kafka_username     = "maxsentinel"
+
+# Supply passwords through TF_VAR_db_password and TF_VAR_kafka_password.

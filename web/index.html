@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="MAX Sentinel real-time digital-asset market risk dashboard" />
+  <title>MAX Sentinel — Market Risk Operations</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">MS</div>
+        <div>
+          <strong>MAX Sentinel</strong>
+          <span>Market Risk Operations</span>
+        </div>
+      </div>
+
+      <nav>
+        <a class="active" href="#overview"><span>01</span> Overview</a>
+        <a href="#microstructure"><span>02</span> Microstructure</a>
+        <a href="#guardrails"><span>03</span> Paper Guardrails</a>
+        <a href="#architecture"><span>04</span> Architecture</a>
+      </nav>
+
+      <div class="connection-card">
+        <div class="status-line"><i id="connection-dot"></i><span id="connection-text">Connecting</span></div>
+        <small>Public MAX market data only.<br />No real orders are submitted.</small>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">DIGITAL ASSET EXCHANGE ENGINEERING DEMO</p>
+          <h1>Real-time market health and deterministic order guardrails</h1>
+        </div>
+        <div class="topbar-actions">
+          <label for="market-select">Market</label>
+          <select id="market-select"><option value="btctwd">BTC / TWD</option></select>
+          <span id="last-updated">Waiting for feed</span>
+        </div>
+      </header>
+
+      <section id="overview" class="hero-grid">
+        <article class="primary-card">
+          <div class="card-heading">
+            <div>
+              <span class="label">MID PRICE</span>
+              <div class="price-row"><strong id="mid-price">—</strong><span>TWD</span></div>
+            </div>
+            <span id="severity-badge" class="badge normal">NORMAL</span>
+          </div>
+          <div class="chart-wrap">
+            <svg id="price-chart" viewBox="0 0 800 260" preserveAspectRatio="none" aria-label="Live price chart">
+              <defs>
+                <linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0" stop-color="currentColor" stop-opacity="0.32" />
+                  <stop offset="1" stop-color="currentColor" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <path id="chart-area" d="" fill="url(#chart-fill)"></path>
+              <path id="chart-line" d="" fill="none" stroke="currentColor" stroke-width="3" vector-effect="non-scaling-stroke"></path>
+            </svg>
+          </div>
+          <div class="market-strip">
+            <div><span>Best bid</span><strong id="best-bid">—</strong></div>
+            <div><span>Best ask</span><strong id="best-ask">—</strong></div>
+            <div><span>Weighted mid</span><strong id="weighted-mid">—</strong></div>
+          </div>
+        </article>
+
+        <aside class="risk-card">
+          <div class="card-heading compact">
+            <div><span class="label">RISK SIGNALS</span><h2>Live evaluation</h2></div>
+            <span id="event-count">0 events</span>
+          </div>
+          <div class="risk-list">
+            <div class="risk-row"><span>Spread</span><div><strong id="spread">—</strong><small>bps</small></div></div>
+            <div class="risk-row"><span>Book imbalance</span><div><strong id="imbalance">—</strong><small>-1 to +1</small></div></div>
+            <div class="risk-row"><span>Realized volatility</span><div><strong id="volatility">—</strong><small>rolling σ</small></div></div>
+            <div class="risk-row"><span>Feed age</span><div><strong id="feed-age">—</strong><small>seconds</small></div></div>
+          </div>
+          <div class="reason-box">
+            <span>Current decision evidence</span>
+            <ul id="risk-reasons"><li>Waiting for a market snapshot</li></ul>
+          </div>
+        </aside>
+      </section>
+
+      <section id="microstructure" class="metric-grid">
+        <article><span class="metric-icon">SP</span><div><small>Spread</small><strong id="spread-card">—</strong><p>Transaction-cost proxy</p></div></article>
+        <article><span class="metric-icon">BI</span><div><small>Imbalance</small><strong id="imbalance-card">—</strong><p>Top-book pressure</p></div></article>
+        <article><span class="metric-icon">RV</span><div><small>Volatility</small><strong id="vol-card">—</strong><p>Rolling log-return σ</p></div></article>
+        <article><span class="metric-icon">PS</span><div><small>Price shock</small><strong id="shock-card">—</strong><p>Single-event movement</p></div></article>
+      </section>
+
+      <section id="guardrails" class="split-grid">
+        <article class="panel">
+          <div class="panel-title">
+            <div><span class="label">PAPER ORDER</span><h2>Deterministic pre-trade checks</h2></div>
+            <span class="safe-chip">NO REAL EXECUTION</span>
+          </div>
+          <form id="paper-order-form">
+            <div class="field-row">
+              <label>Side<select id="order-side"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
+              <label>Quantity<input id="order-quantity" inputmode="decimal" value="0.001" /></label>
+            </div>
+            <label>Limit price (optional)<input id="order-price" inputmode="decimal" placeholder="Current reference price" /></label>
+            <button type="submit">Run risk checks</button>
+          </form>
+          <div id="order-result" class="order-result idle">
+            <strong>Ready for simulation</strong>
+            <p>The gateway checks feed freshness, severity, notional size, price distance, and input validity.</p>
+          </div>
+        </article>
+
+        <article class="panel" id="architecture">
+          <div class="panel-title"><div><span class="label">EVENT-DRIVEN SYSTEM</span><h2>Production-oriented architecture</h2></div></div>
+          <div class="architecture-flow">
+            <div class="node source"><b>MAX</b><span>WebSocket</span></div><i>→</i>
+            <div class="node"><b>Market Data</b><span>Go adapter</span></div><i>→</i>
+            <div class="node stream"><b>Redpanda</b><span>Kafka API</span></div><i>→</i>
+            <div class="node"><b>Risk Engine</b><span>Go + gRPC</span></div><i>→</i>
+            <div class="node"><b>Gateway</b><span>REST + SSE</span></div>
+          </div>
+          <div class="stack-tags">
+            <span>Go</span><span>gRPC</span><span>PostgreSQL</span><span>Kubernetes</span><span>Prometheus</span><span>Grafana</span><span>Terraform</span>
+          </div>
+          <p class="architecture-note">At-least-once delivery, poison-message DLQ evidence, fail-safe audit persistence, and observable service boundaries.</p>
+        </article>
+      </section>
+
+      <footer>
+        <span>Independent engineering portfolio project</span>
+        <span>MAX public API · No affiliation · No financial advice</span>
+      </footer>
+    </main>
+  </div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

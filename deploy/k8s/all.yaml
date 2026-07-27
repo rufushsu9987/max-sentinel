@@ -1,0 +1,395 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: max-sentinel
+  labels:
+    app.kubernetes.io/part-of: max-sentinel
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: max-sentinel-config
+  namespace: max-sentinel
+data:
+  APP_ENV: production
+  MARKETS: btctwd,ethtwd
+  KAFKA_BROKERS: msk-bootstrap.example.internal:9096
+  KAFKA_TLS_ENABLED: "true"
+  KAFKA_SASL_MECHANISM: SCRAM-SHA-512
+  MARKET_EVENTS_TOPIC: market.events.v1
+  RISK_SNAPSHOTS_TOPIC: risk.snapshots.v1
+  MAX_BOOK_DEPTH: "20"
+  RISK_WINDOW_SIZE: "120"
+  RISK_STALE_AFTER_SECONDS: "10"
+  REQUIRE_DATABASE: "true"
+  PAPER_MAX_NOTIONAL_TWD: "100000"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: max-sentinel-kafka
+  namespace: max-sentinel
+type: Opaque
+stringData:
+  # Replace through External Secrets / Secrets Store CSI in production.
+  KAFKA_SASL_USERNAME: replace-me
+  KAFKA_SASL_PASSWORD: replace-me
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: max-sentinel-database
+  namespace: max-sentinel
+type: Opaque
+stringData:
+  # Mounted only by the risk service to preserve least privilege.
+  DATABASE_URL: postgres://replace-me
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marketdata
+  namespace: max-sentinel
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: marketdata}
+  template:
+    metadata:
+      labels: {app: marketdata}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: marketdata
+          image: ghcr.io/rufushsu/max-sentinel-marketdata:0.1.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: max-sentinel-config}
+            - secretRef: {name: max-sentinel-kafka}
+          ports:
+            - {name: metrics, containerPort: 8081}
+          readinessProbe:
+            httpGet: {path: /readyz, port: metrics}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketdata
+  namespace: max-sentinel
+spec:
+  selector: {app: marketdata}
+  ports:
+    - {name: metrics, port: 8081, targetPort: metrics}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: risk
+  namespace: max-sentinel
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: risk}
+  template:
+    metadata:
+      labels: {app: risk}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8082"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: risk
+          image: ghcr.io/rufushsu/max-sentinel-risk:0.1.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: max-sentinel-config}
+            - secretRef: {name: max-sentinel-kafka}
+            - secretRef: {name: max-sentinel-database}
+          ports:
+            - {name: metrics, containerPort: 8082}
+            - {name: grpc, containerPort: 9090}
+          readinessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 200m, memory: 256Mi}
+            limits: {cpu: "2", memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: risk
+  namespace: max-sentinel
+spec:
+  selector: {app: risk}
+  ports:
+    - {name: metrics, port: 8082, targetPort: metrics}
+    - {name: grpc, port: 9090, targetPort: grpc}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: max-sentinel
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: gateway}
+  template:
+    metadata:
+      labels: {app: gateway}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: gateway
+          image: ghcr.io/rufushsu/max-sentinel-gateway:0.1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: {fieldPath: metadata.name}
+          envFrom:
+            - configMapRef: {name: max-sentinel-config}
+            - secretRef: {name: max-sentinel-kafka}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: max-sentinel
+spec:
+  type: ClusterIP
+  selector: {app: gateway}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway
+  namespace: max-sentinel
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: gateway}
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 70}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway
+  namespace: max-sentinel
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: gateway}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: max-sentinel
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: max-sentinel
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-marketdata-egress
+  namespace: max-sentinel
+spec:
+  podSelector:
+    matchLabels:
+      app: marketdata
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 9096}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-risk-egress
+  namespace: max-sentinel
+spec:
+  podSelector:
+    matchLabels:
+      app: risk
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - {protocol: TCP, port: 5432}
+        - {protocol: TCP, port: 9096}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-egress
+  namespace: max-sentinel
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - {protocol: TCP, port: 9096}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-risk-grpc-from-gateway
+  namespace: max-sentinel
+spec:
+  podSelector:
+    matchLabels:
+      app: risk
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: gateway
+      ports:
+        - {protocol: TCP, port: 9090}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-risk-grpc
+  namespace: max-sentinel
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: risk
+      ports:
+        - {protocol: TCP, port: 9090}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-controller
+  namespace: max-sentinel
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - {protocol: TCP, port: 8080}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring
+  namespace: max-sentinel
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - {protocol: TCP, port: 8080}
+        - {protocol: TCP, port: 8081}
+        - {protocol: TCP, port: 8082}

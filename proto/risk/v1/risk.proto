@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package maxsentinel.risk.v1;
+
+option go_package = "github.com/rufushsu9987/max-sentinel/gen/risk/v1;riskv1";
+
+import "google/protobuf/struct.proto";
+
+// The runnable demo uses Struct messages so the repository remains protoc-free.
+// A production version should replace this with generated typed request/response messages.
+service RiskService {
+  rpc Evaluate(google.protobuf.Struct) returns (google.protobuf.Struct);
+}

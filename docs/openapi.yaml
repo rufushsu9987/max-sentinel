@@ -1,0 +1,134 @@
+openapi: 3.1.0
+info:
+  title: MAX Sentinel Gateway API
+  version: 1.0.0
+  description: Public market-risk snapshots and simulated paper-order guardrails. No real order execution.
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      operationId: health
+      responses:
+        "200": {description: Process is alive}
+  /readyz:
+    get:
+      operationId: readiness
+      responses:
+        "200": {description: At least one market snapshot is available}
+        "503": {description: No snapshot has been received}
+  /api/v1/markets:
+    get:
+      operationId: listMarkets
+      responses:
+        "200":
+          description: Known markets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  markets:
+                    type: array
+                    items: {type: string}
+  /api/v1/markets/{market}/snapshot:
+    get:
+      operationId: getSnapshot
+      parameters:
+        - name: market
+          in: path
+          required: true
+          schema: {type: string, example: btctwd}
+      responses:
+        "200":
+          description: Latest deterministic risk snapshot
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RiskSnapshot"}
+        "404": {description: Unknown market}
+  /api/v1/stream:
+    get:
+      operationId: streamSnapshots
+      parameters:
+        - name: market
+          in: query
+          schema: {type: string}
+      responses:
+        "200":
+          description: Server-Sent Events named `risk.snapshot`
+          content:
+            text/event-stream:
+              schema: {type: string}
+  /api/v1/paper/orders:
+    post:
+      operationId: evaluatePaperOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PaperOrderRequest"}
+      responses:
+        "201":
+          description: Accepted for simulation
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PaperOrderDecision"}
+        "400": {description: Invalid JSON input}
+        "409": {description: Market data unavailable}
+        "422":
+          description: Rejected by deterministic guardrails
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PaperOrderDecision"}
+components:
+  schemas:
+    Severity:
+      type: string
+      enum: [NORMAL, WARNING, CRITICAL]
+    RiskSnapshot:
+      type: object
+      required: [snapshot_id, market, observed_at, severity, reasons]
+      properties:
+        snapshot_id: {type: string}
+        market: {type: string}
+        observed_at: {type: string, format: date-time}
+        last_event_at: {type: string, format: date-time}
+        best_bid: {type: number}
+        best_ask: {type: number}
+        mid_price: {type: number}
+        spread_bps: {type: number}
+        book_imbalance: {type: number}
+        weighted_mid_price: {type: number}
+        realized_volatility: {type: number}
+        price_shock_bps: {type: number}
+        feed_age_seconds: {type: number}
+        severity: {$ref: "#/components/schemas/Severity"}
+        reasons:
+          type: array
+          items: {type: string}
+        event_count: {type: integer, format: int64}
+    PaperOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [market, side, quantity]
+      properties:
+        market: {type: string, example: btctwd}
+        side: {type: string, enum: [buy, sell]}
+        quantity: {type: string, example: "0.001"}
+        limit_price: {type: string, example: "3500000"}
+    PaperOrderDecision:
+      type: object
+      properties:
+        order_id: {type: string}
+        accepted: {type: boolean}
+        market: {type: string}
+        side: {type: string}
+        quantity: {type: number}
+        reference_price: {type: number}
+        estimated_notional_twd: {type: number}
+        estimated_slippage_bps: {type: number}
+        severity: {$ref: "#/components/schemas/Severity"}
+        reasons:
+          type: array
+          items: {type: string}
+        created_at: {type: string, format: date-time}

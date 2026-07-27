@@ -1,0 +1,130 @@
+name: max-sentinel
+services:
+  redpanda:
+    image: redpandadata/redpanda:v26.1.14
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health --exit-when-healthy"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: maxsentinel
+      POSTGRES_USER: maxsentinel
+      POSTGRES_PASSWORD: maxsentinel
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maxsentinel -d maxsentinel"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  marketdata:
+    build:
+      context: ..
+      args:
+        SERVICE: marketdata
+    environment:
+      APP_ENV: development
+      MARKETS: btctwd,ethtwd
+      KAFKA_BROKERS: redpanda:9092
+      MARKETDATA_HTTP_ADDR: :8081
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
+  risk:
+    build:
+      context: ..
+      args:
+        SERVICE: risk
+    environment:
+      APP_ENV: development
+      KAFKA_BROKERS: redpanda:9092
+      DATABASE_URL: postgres://maxsentinel:maxsentinel@postgres:5432/maxsentinel?sslmode=disable
+      REQUIRE_DATABASE: "true"
+      RISK_HTTP_ADDR: :8082
+      RISK_GRPC_ADDR: :9090
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+      - "9090:9090"
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ..
+      args:
+        SERVICE: gateway
+    environment:
+      APP_ENV: development
+      KAFKA_BROKERS: redpanda:9092
+      GATEWAY_HTTP_ADDR: :8080
+      PAPER_MAX_NOTIONAL_TWD: "100000"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      risk:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.13.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9091:9090"
+    depends_on:
+      - marketdata
+      - risk
+      - gateway
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.1.1
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
