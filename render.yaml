@@ -3,10 +3,11 @@ services:
     name: max-sentinel
     runtime: docker
     plan: free
+    region: singapore
     branch: main
     dockerfilePath: ./Dockerfile
     healthCheckPath: /healthz
-    autoDeploy: true
+    autoDeployTrigger: checksPass
     envVars:
       - key: APP_ENV
         value: demo
