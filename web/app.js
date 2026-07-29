@@ -4,6 +4,7 @@ const elements = {
   connectionText: document.querySelector('#connection-text'),
   updated: document.querySelector('#last-updated'),
   mid: document.querySelector('#mid-price'),
+  quoteUnit: document.querySelector('#quote-unit'),
   severity: document.querySelector('#severity-badge'),
   bid: document.querySelector('#best-bid'),
   ask: document.querySelector('#best-ask'),
@@ -22,10 +23,12 @@ const elements = {
   chartArea: document.querySelector('#chart-area'),
   orderForm: document.querySelector('#paper-order-form'),
   orderResult: document.querySelector('#order-result'),
+  orderButton: document.querySelector('#paper-order-form button[type="submit"]'),
 };
 
 let source;
 let priceHistory = [];
+let currentMarket = 'btctwd';
 
 const fmtPrice = (value) => Number(value || 0).toLocaleString('zh-TW', { maximumFractionDigits: 2 });
 const fmt = (value, digits = 2) => Number(value || 0).toFixed(digits);
@@ -42,14 +45,51 @@ async function loadMarkets() {
   }
 }
 
+const quoteCurrencies = ['USDT', 'USDC', 'TWD', 'USD', 'BTC', 'ETH'];
+
+function marketParts(market) {
+  const upper = String(market || '').toUpperCase();
+  const quote = quoteCurrencies.find(candidate => upper.endsWith(candidate) && upper.length > candidate.length);
+  return quote ? { base: upper.slice(0, -quote.length), quote } : { base: upper, quote: '' };
+}
+
 function formatMarket(market) {
-  const upper = market.toUpperCase();
-  return upper.endsWith('TWD') ? `${upper.slice(0, -3)} / TWD` : upper;
+  const { base, quote } = marketParts(market);
+  return quote ? `${base} / ${quote}` : base;
+}
+
+function formatNotional(value, market) {
+  const quote = marketParts(market).quote;
+  const formatted = fmtPrice(value);
+  if (quote === 'TWD') return `NT$${formatted}`;
+  if (quote === 'USD') return `US$${formatted}`;
+  return quote ? `${quote} ${formatted}` : formatted;
+}
+
+function isSyntheticReferenceMarket(market) {
+  return String(market || '').toLowerCase() === 'btcusd';
+}
+
+function updateOrderAvailability(market) {
+  const disabled = isSyntheticReferenceMarket(market);
+  elements.orderForm.querySelectorAll('input, select, button').forEach(control => {
+    control.disabled = disabled;
+  });
+  if (disabled) {
+    elements.orderResult.className = 'order-result idle';
+    elements.orderResult.innerHTML = '<strong>Reference market only</strong><p>BTC/USD is a synthetic demo reference. Paper orders remain available for MAX-native markets.</p>';
+  } else {
+    elements.orderResult.className = 'order-result idle';
+    elements.orderResult.innerHTML = '<strong>Ready for simulation</strong><p>The gateway checks feed freshness, severity, notional size, price distance, and input validity.</p>';
+  }
 }
 
 function connect(market) {
   source?.close();
+  currentMarket = market;
   priceHistory = [];
+  elements.quoteUnit.textContent = marketParts(market).quote || 'QUOTE';
+  updateOrderAvailability(market);
   setConnection(false, 'Connecting');
   source = new EventSource(`/api/v1/stream?market=${encodeURIComponent(market)}`);
   source.addEventListener('risk.snapshot', event => {
@@ -66,6 +106,8 @@ function setConnection(live, text) {
 }
 
 function render(s) {
+  currentMarket = s.market || currentMarket;
+  elements.quoteUnit.textContent = marketParts(currentMarket).quote || 'QUOTE';
   elements.mid.textContent = fmtPrice(s.mid_price);
   elements.bid.textContent = fmtPrice(s.best_bid);
   elements.ask.textContent = fmtPrice(s.best_ask);
@@ -117,6 +159,7 @@ elements.market.addEventListener('change', event => connect(event.target.value))
 
 elements.orderForm.addEventListener('submit', async event => {
   event.preventDefault();
+  if (isSyntheticReferenceMarket(currentMarket)) return;
   const payload = {
     market: elements.market.value,
     side: document.querySelector('#order-side').value,
@@ -135,7 +178,7 @@ elements.orderForm.addEventListener('submit', async event => {
     const accepted = Boolean(result.accepted);
     elements.orderResult.className = `order-result ${accepted ? 'accepted' : 'rejected'}`;
     elements.orderResult.innerHTML = `<strong>${accepted ? 'Accepted for paper simulation' : 'Rejected by guardrails'}</strong>
-      <p>${(result.reasons || []).map(escapeHTML).join(' · ')}<br />Estimated notional: NT$${fmtPrice(result.estimated_notional_twd)}</p>`;
+      <p>${(result.reasons || []).map(escapeHTML).join(' · ')}<br />Estimated notional: ${formatNotional(result.estimated_notional_twd, result.market || currentMarket)}</p>`;
   } catch (error) {
     elements.orderResult.className = 'order-result rejected';
     elements.orderResult.innerHTML = `<strong>Request failed</strong><p>${escapeHTML(error.message)}</p>`;

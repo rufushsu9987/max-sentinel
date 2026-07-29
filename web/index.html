@@ -27,7 +27,7 @@
 
       <div class="connection-card">
         <div class="status-line"><i id="connection-dot"></i><span id="connection-text">Connecting</span></div>
-        <small>Public MAX market data only.<br />No real orders are submitted.</small>
+        <small>MAX-native markets plus a synthetic USD reference.<br />No real orders are submitted.</small>
       </div>
     </aside>
 
@@ -49,7 +49,7 @@
           <div class="card-heading">
             <div>
               <span class="label">MID PRICE</span>
-              <div class="price-row"><strong id="mid-price">—</strong><span>TWD</span></div>
+              <div class="price-row"><strong id="mid-price">—</strong><span id="quote-unit">TWD</span></div>
             </div>
             <span id="severity-badge" class="badge normal">NORMAL</span>
           </div>
@@ -135,7 +135,7 @@
 
       <footer>
         <span>Independent engineering portfolio project</span>
-        <span>MAX public API · No affiliation · No financial advice</span>
+        <span>MAX public API · Synthetic BTC/USD reference in demo mode · No financial advice</span>
       </footer>
     </main>
   </div>

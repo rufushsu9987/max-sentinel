@@ -47,7 +47,7 @@ migrate:
 	psql "$${DATABASE_URL}" -f migrations/001_init.sql
 
 demo:
-	APP_ENV=demo GATEWAY_HTTP_ADDR=:8080 go run ./cmd/gateway
+	APP_ENV=demo GATEWAY_HTTP_ADDR=:8080 MARKETS=btctwd,btcusd,ethtwd go run ./cmd/gateway
 
 backtest:
 	go run ./cmd/backtest -input testdata/btctwd_ticks.csv
