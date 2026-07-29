@@ -14,6 +14,6 @@ services:
       - key: GATEWAY_HTTP_ADDR
         value: :10000
       - key: MARKETS
-        value: btctwd,ethtwd
+        value: btctwd,btcusd,ethtwd
       - key: PAPER_MAX_NOTIONAL_TWD
         value: "100000"

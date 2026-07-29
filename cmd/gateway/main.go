@@ -85,12 +85,12 @@ func main() {
 
 func runDemo(ctx context.Context, state *api.State, markets []string) {
 	if len(markets) == 0 {
-		markets = []string{"btctwd", "ethtwd"}
+		markets = []string{"btctwd", "btcusd", "ethtwd"}
 	}
 	started := time.Now().UTC()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
-	base := map[string]float64{"btctwd": 3_450_000, "ethtwd": 118_000}
+	base := map[string]float64{"btctwd": 3_450_000, "btcusd": 108_000, "ethtwd": 118_000}
 	for {
 		select {
 		case <-ctx.Done():
