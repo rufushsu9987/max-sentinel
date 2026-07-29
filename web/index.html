@@ -3,9 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="MAX Sentinel real-time digital-asset market risk dashboard" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="description" content="MAX Sentinel deterministic digital-asset market risk dashboard" />
   <title>MAX Sentinel — Market Risk Operations</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css?v=20260729-2" />
 </head>
 <body>
   <div class="shell">
@@ -27,7 +30,7 @@
 
       <div class="connection-card">
         <div class="status-line"><i id="connection-dot"></i><span id="connection-text">Connecting</span></div>
-        <small>MAX-native markets plus a synthetic USD reference.<br />No real orders are submitted.</small>
+        <small>Deterministic simulated market feed.<br />No real orders are submitted.</small>
       </div>
     </aside>
 
@@ -35,11 +38,14 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">DIGITAL ASSET EXCHANGE ENGINEERING DEMO</p>
-          <h1>Real-time market health and deterministic order guardrails</h1>
+          <h1>Market health and deterministic order guardrails</h1>
         </div>
         <div class="topbar-actions">
-          <label for="market-select">Market</label>
-          <select id="market-select"><option value="btctwd">BTC / TWD</option></select>
+          <div class="market-label-row">
+            <label for="market-select">Market</label>
+            <span class="mode-chip">SIMULATED DATA</span>
+          </div>
+          <select id="market-select" aria-label="Selected market"><option value="btctwd">BTC / TWD</option></select>
           <span id="last-updated">Waiting for feed</span>
         </div>
       </header>
@@ -54,7 +60,7 @@
             <span id="severity-badge" class="badge normal">NORMAL</span>
           </div>
           <div class="chart-wrap">
-            <svg id="price-chart" viewBox="0 0 800 260" preserveAspectRatio="none" aria-label="Live price chart">
+            <svg id="price-chart" viewBox="0 0 800 260" preserveAspectRatio="none" aria-label="Simulated price chart">
               <defs>
                 <linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="0" stop-color="currentColor" stop-opacity="0.32" />
@@ -74,7 +80,7 @@
 
         <aside class="risk-card">
           <div class="card-heading compact">
-            <div><span class="label">RISK SIGNALS</span><h2>Live evaluation</h2></div>
+            <div><span class="label">RISK SIGNALS</span><h2>Deterministic evaluation</h2></div>
             <span id="event-count">0 events</span>
           </div>
           <div class="risk-list">
@@ -135,10 +141,10 @@
 
       <footer>
         <span>Independent engineering portfolio project</span>
-        <span>MAX public API · Synthetic BTC/USD reference in demo mode · No financial advice</span>
+        <span>Simulated market data · Synthetic BTC / USD reference · No financial advice</span>
       </footer>
     </main>
   </div>
-  <script src="/app.js" defer></script>
+  <script src="/app.js?v=20260729-2" defer></script>
 </body>
 </html>

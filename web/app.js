@@ -33,19 +33,32 @@ let currentMarket = 'btctwd';
 const fmtPrice = (value) => Number(value || 0).toLocaleString('zh-TW', { maximumFractionDigits: 2 });
 const fmt = (value, digits = 2) => Number(value || 0).toFixed(digits);
 
+const marketLabels = {
+  btctwd: 'BTC / TWD',
+  btcusd: 'BTC / USD',
+  ethtwd: 'ETH / TWD',
+};
+
+const quoteCurrencies = ['USDT', 'USDC', 'TWD', 'USD', 'BTC', 'ETH'];
+
 async function loadMarkets() {
   try {
-    const response = await fetch('/api/v1/markets');
+    const response = await fetch('/api/v1/markets', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`market list request failed: ${response.status}`);
     const data = await response.json();
     const markets = data.markets?.length ? data.markets : ['btctwd'];
-    elements.market.innerHTML = markets.map(m => `<option value="${m}">${formatMarket(m)}</option>`).join('');
+    const options = markets.map(market => {
+      const option = document.createElement('option');
+      option.value = market;
+      option.textContent = formatMarket(market);
+      return option;
+    });
+    elements.market.replaceChildren(...options);
     connect(markets[0]);
   } catch (error) {
     setConnection(false, 'API unavailable');
   }
 }
-
-const quoteCurrencies = ['USDT', 'USDC', 'TWD', 'USD', 'BTC', 'ETH'];
 
 function marketParts(market) {
   const upper = String(market || '').toUpperCase();
@@ -54,7 +67,9 @@ function marketParts(market) {
 }
 
 function formatMarket(market) {
-  const { base, quote } = marketParts(market);
+  const normalized = String(market || '').trim().toLowerCase();
+  if (marketLabels[normalized]) return marketLabels[normalized];
+  const { base, quote } = marketParts(normalized);
   return quote ? `${base} / ${quote}` : base;
 }
 
@@ -77,7 +92,7 @@ function updateOrderAvailability(market) {
   });
   if (disabled) {
     elements.orderResult.className = 'order-result idle';
-    elements.orderResult.innerHTML = '<strong>Reference market only</strong><p>BTC/USD is a synthetic demo reference. Paper orders remain available for MAX-native markets.</p>';
+    elements.orderResult.innerHTML = '<strong>Reference market only</strong><p>BTC / USD is a synthetic demo reference. Paper orders remain available for MAX-native markets.</p>';
   } else {
     elements.orderResult.className = 'order-result idle';
     elements.orderResult.innerHTML = '<strong>Ready for simulation</strong><p>The gateway checks feed freshness, severity, notional size, price distance, and input validity.</p>';
@@ -89,13 +104,14 @@ function connect(market) {
   currentMarket = market;
   priceHistory = [];
   elements.quoteUnit.textContent = marketParts(market).quote || 'QUOTE';
+  elements.market.setAttribute('aria-label', `Selected market: ${formatMarket(market)}`);
   updateOrderAvailability(market);
   setConnection(false, 'Connecting');
   source = new EventSource(`/api/v1/stream?market=${encodeURIComponent(market)}`);
   source.addEventListener('risk.snapshot', event => {
     const snapshot = JSON.parse(event.data);
     render(snapshot);
-    setConnection(true, 'Live market feed');
+    setConnection(true, 'Simulated feed connected');
   });
   source.onerror = () => setConnection(false, 'Reconnecting');
 }
